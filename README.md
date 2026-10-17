@@ -228,3 +228,55 @@ The participant configured the environment, executed and tested the implementati
 ## Repository
 
 https://github.com/Grolds-Code/LotGuard
+
+## LotGuard Sentinel — Evidence-Based Intervention
+
+Sentinel extends LotGuard with an evidence-producing investigation planner and an approval-controlled quarantine executor.
+
+### Generate an investigation plan
+
+~~~bash
+uv run --no-sync python -m lotguard.sentinel --lot ING-001
+~~~
+
+The planner queries FalkorDB and produces:
+- Ingredient-to-shipment evidence paths
+- Pending quarantine recommendations
+- Already-quarantined shipments
+- Inventory with no known contamination path
+- Escalation recommendations when appropriate
+- A JSON evidence report in `reports/`
+
+### Preview the intervention
+
+~~~bash
+uv run --no-sync python -m lotguard.executor --lot ING-001
+~~~
+
+This shows the proposed intervention without changing inventory.
+
+### Execute an approved intervention
+
+~~~bash
+uv run --no-sync python -m lotguard.executor --lot ING-001 --approve
+~~~
+
+The executor quarantines targeted synthetic shipments, creates audit relationships in FalkorDB, and verifies the resulting inventory state.
+
+Run `seed.py` beforehand to reset the demonstration.
+
+### End-to-end evaluation
+
+Start the local dashboard and execute:
+
+~~~bash
+uv run --no-sync python tests/test_e2e.py
+~~~
+
+The six tests verify initial inventory, approval enforcement, protection against recall actions for clear lots, targeted quarantine, graph audit records, and repeated-action behavior.
+
+### Agent capabilities and limitations
+
+Sentinel uses a deterministic, graph-driven tool workflow. It does not currently use an LLM, MCP-based tool selection, or open-ended autonomous reasoning.
+
+Its evidence bundles provide auditable graph paths rather than formal proofs. All demonstrations use synthetic data.
