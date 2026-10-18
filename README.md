@@ -280,3 +280,72 @@ The six tests verify initial inventory, approval enforcement, protection against
 Sentinel uses a deterministic, graph-driven tool workflow. It does not currently use an LLM, MCP-based tool selection, or open-ended autonomous reasoning.
 
 Its evidence bundles provide auditable graph paths rather than formal proofs. All demonstrations use synthetic data.
+
+## Deep-Provenance Investigation — Advanced Demonstration
+
+LotGuard Sentinel includes a second synthetic scenario showing how the depth of a graph traversal affects contamination detection.
+
+This advanced scenario runs in the separate `lotguard_depth_demo` graph and does not modify the original dashboard demonstration.
+
+### 1. Initialize the deep-provenance graph
+
+~~~bash
+uv run --no-sync python -m lotguard.deep_lineage
+~~~
+
+This creates a multi-stage supply chain with ingredient transformations, reprocessing, warehousing, an independent shipment, and incomplete provenance.
+
+The command resets `lotguard_depth_demo` each time it runs.
+
+### 2. Run deep investigation
+
+~~~bash
+uv run --no-sync python -m lotguard.deep_sentinel
+~~~
+
+The planner discovers three affected shipments through paths of different lengths.
+
+| Shipment | Path depth | Expected classification |
+|---|---:|---|
+| SHIP-10 | 3 hops | Affected |
+| SHIP-20 | 5 hops | Affected |
+| SHIP-30 | 6 hops | Affected |
+| SHIP-40 | No known risk path | Not targeted |
+| SHIP-50 | Incomplete provenance | Manual review |
+
+### 3. Preview an intervention
+
+~~~bash
+uv run --no-sync python -m lotguard.deep_executor
+~~~
+
+The executor displays the evidence and requests approval without changing inventory.
+
+### 4. Execute and verify
+
+~~~bash
+uv run --no-sync python -m lotguard.deep_executor --approve
+~~~
+
+The approved executor quarantines three affected shipments totaling 350 units, verifies the corresponding graph audit records, and confirms that unrelated shipment states remain unchanged.
+
+SHIP-50 remains flagged for provenance investigation rather than being classified as safe.
+
+### Why traversal depth matters
+
+In this deliberately constructed five-shipment synthetic scenario:
+
+- Traversal limited to three hops detects 1 of 3 known affected shipments.
+- Traversal up to eight hops detects all 3 known affected shipments.
+- Full paths are returned as evidence for each affected shipment.
+- The resulting intervention is recorded and verified in FalkorDB.
+
+This is a controlled demonstration of graph-traversal completeness, not an external benchmark or evidence of industrial recall accuracy.
+
+### Implementation
+
+- `src/lotguard/deep_lineage.py` — synthetic graph construction and traversal comparison
+- `src/lotguard/deep_sentinel.py` — variable-depth investigation and planning
+- `src/lotguard/deep_executor.py` — approval-controlled execution and graph verification
+
+The advanced workflow is currently operated through the command line. The web dashboard remains connected to the original smaller demonstration.
