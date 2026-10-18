@@ -63,6 +63,89 @@ authentication or independent public-user sessions.
 
 ---
 
+## Adaptive MCP Investigation Agent
+
+LotGuard Sentinel includes a real Model Context Protocol (MCP)
+integration backed by FalkorDB.
+
+The investigator uses policy-driven tool selection to choose
+operations based on live graph evidence and incident state.
+
+### Available MCP tools
+
+| Tool | Purpose |
+|---|---|
+| `inspect_incident` | Check whether an ingredient is contaminated |
+| `trace_provenance` | Traverse connected shipments at 3 or 8 hops |
+| `inspect_provenance_gaps` | Identify incomplete upstream lineage |
+| `propose_response` | Generate a read-only containment proposal |
+| `audit_history` | Inspect previous quarantine interventions |
+
+### Run the MCP investigator
+
+With FalkorDB running and the synthetic graph initialized:
+
+```bash
+uv run --no-sync python -m lotguard.tool_agent
+```
+
+Alternatively, start the Sentinel dashboard:
+
+```bash
+uv run --no-sync python -m lotguard.sentinel_ui
+```
+
+Open http://127.0.0.1:8766 and select
+**Run MCP investigation and view tool trace**.
+
+The trace page shows which MCP tools were invoked, why they
+were selected, the connected shipments discovered, and the
+resulting graph-grounded intervention proposal.
+
+### MCP server
+
+The standalone MCP server is implemented in
+`src/lotguard/mcp_server.py` and supports stdio transport:
+
+```bash
+uv run --no-sync python -m lotguard.mcp_server
+```
+
+The dashboard uses an in-process MCP client connection;
+a separate MCP server process is not required.
+
+### Evidence-dependent tool selection
+
+The verified agent follows different tool sequences:
+
+1. **Initial contamination:** Trace affected shipments,
+   propose containment, and inspect missing provenance.
+2. **After first quarantine:** Also inspect recorded graph actions.
+3. **After new supplier evidence:** Skip resolved provenance
+   investigations and propose quarantine of only newly
+   identified affected inventory.
+4. **Unknown ingredient:** Stop after incident inspection,
+   without proposing an intervention.
+
+This is deterministic, evidence-conditioned MCP orchestration,
+not an LLM-driven autonomous planning system.
+
+### MCP verification
+
+```bash
+uv run --no-sync python tests/test_mcp_tools.py
+uv run --no-sync python tests/test_mcp_agent_states.py
+```
+
+The state-transition test resets the synthetic deep-demo graph.
+
+**Safety:** MCP investigation tools are read-only. Inventory
+mutations are handled separately by the deterministic executor
+and require explicit operator approval. The local dashboard
+is not a production-authenticated multi-user service.
+
+---
+
 ## Advanced FalkorDB Graph Model
 
 This is the graph used in the recommended Sentinel demonstration
