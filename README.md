@@ -63,6 +63,87 @@ authentication or independent public-user sessions.
 
 ---
 
+## Advanced FalkorDB Graph Model
+
+This is the graph used in the recommended Sentinel demonstration
+(`lotguard_depth_demo`).
+
+### Connected supply-chain model
+
+```mermaid
+flowchart TD
+    Risk["IngredientLot: ING-RISK<br/>CONTAMINATED"]
+    Safe["IngredientLot: ING-SAFE<br/>CLEAR"]
+
+    Risk --> R10["Run: RUN-10"]
+    R10 --> B10["Batch: B-10"]
+    B10 --> S10["Shipment: SHIP-10<br/>120 units"]
+
+    Risk --> R20["Run: RUN-20"]
+    R20 --> B20["Batch: B-20"]
+
+    B20 --> R30["Run: RUN-30"]
+    R30 --> B30["Batch: B-30"]
+    B30 --> S20["Shipment: SHIP-20<br/>80 units"]
+
+    B20 --> R40["Run: RUN-40"]
+    R40 --> B40["Batch: B-40"]
+    B40 --> WH40["Warehouse: WH-40"]
+    WH40 --> S30["Shipment: SHIP-30<br/>150 units"]
+
+    Safe --> R50["Run: RUN-50"]
+    R50 --> B50["Batch: B-50"]
+    B50 --> S40["Shipment: SHIP-40<br/>200 units"]
+
+    B20 -.->|"Late FLOWS_TO evidence"| R60["Run: RUN-60"]
+    R60 -.-> BX["Batch: B-UNKNOWN"]
+    BX --> S50["Shipment: SHIP-50<br/>60 units"]
+
+    EV["ProvenanceEvidence:<br/>EVID-SUPPLIER-50"]
+    EV -->|RESOLVES| BX
+```
+
+Solid arrows represent initial `FLOWS_TO` relationships.
+Dashed arrows represent relationships added when the synthetic
+supplier evidence arrives. The independent shipment SHIP-40 has
+no known contamination path.
+
+The operational graph also contains `QuarantineAction` nodes with
+`TARGETS` relationships to affected shipments and `TRACED_FROM`
+relationships to the contaminated ingredient. Each action stores
+the supporting evidence and execution metadata.
+
+### Essential FalkorDB traversal
+
+The following Cypher pattern is used by the advanced investigator:
+
+```cypher
+MATCH p=(l:IngredientLot {id:$lot})
+      -[:FLOWS_TO*1..8]->(s:Shipment)
+RETURN s.id, s.status, s.units,
+       length(p), [n IN nodes(p) | n.id]
+ORDER BY s.id, length(p)
+```
+
+With `$lot = 'ING-RISK'`, this discovers connected shipments
+through up to eight directed relationships.
+
+A three-hop search initially identifies only SHIP-10.
+The eight-hop search also finds SHIP-20 and SHIP-30.
+After supplier evidence creates the additional lineage to
+SHIP-50, the same investigation identifies its 60 units.
+
+Sentinel derives its quarantine candidates from these results,
+checks current shipment states, requests operator approval,
+and writes verified intervention records back into FalkorDB.
+
+See `src/lotguard/deep_lineage.py`,
+`src/lotguard/deep_sentinel.py`,
+`src/lotguard/late_evidence.py`, and
+`src/lotguard/deep_executor.py` for the implementations.
+
+---
+
 ## The problem
 
 An ingredient may enter several manufacturing runs, be combined with other ingredients, and reach multiple downstream shipments. Identifying affected stock requires following the relationships between the original ingredient and downstream products.
@@ -87,7 +168,7 @@ LotGuard currently implements a deterministic, graph-driven investigation and ac
 ## Architecture
 
 ```text
-Browser dashboard (localhost:8765)
+Sentinel dashboard (localhost:8766; baseline: 8765)
               |
               v
 Python HTTP server (standard library)
@@ -252,7 +333,7 @@ These observations establish correctness for the small synthetic example, not ge
 ## Current limitations
 
 - Synthetic dataset only
-- Fixed, three-hop manufacturing lineage model
+- The original baseline uses three hops; the advanced Sentinel traverses up to eight hops
 - Deterministic decision rules, not LLM reasoning
 - No real shipment-system or ERP integration
 - Local-only demo without production authentication
