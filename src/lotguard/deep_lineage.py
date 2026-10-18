@@ -76,6 +76,38 @@ for source, target in edges:
     """, params={"source": source, "target": target})
 
 
+
+# Operational metadata for the agent workflow.
+graph.query("""
+    MATCH (l:IngredientLot {id:'ING-RISK'})
+    SET l.status = 'CONTAMINATED'
+""")
+
+graph.query("""
+    MATCH (l:IngredientLot {id:'ING-SAFE'})
+    SET l.status = 'CLEAR'
+""")
+
+shipment_units = {
+    "SHIP-10": 120,
+    "SHIP-20": 80,
+    "SHIP-30": 150,
+    "SHIP-40": 200,
+    "SHIP-50": 60,
+}
+
+for shipment_id, units in shipment_units.items():
+    graph.query("""
+        MATCH (s:Shipment {id:$id})
+        SET s.status = 'IN_TRANSIT',
+            s.units = $units
+    """, params={"id": shipment_id, "units": units})
+
+graph.query("""
+    MATCH (b:Batch {id:'B-UNKNOWN'})
+    SET b.provenance_complete = false
+""")
+
 def trace(max_depth):
     # Bound depth explicitly to control path expansion.
     query = f"""
