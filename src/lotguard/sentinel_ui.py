@@ -1,3 +1,4 @@
+import asyncio
 from html import escape
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import parse_qs, urlparse
@@ -6,6 +7,7 @@ from falkordb import FalkorDB
 from lotguard.deep_sentinel import investigate_deep, GRAPH_NAME
 from lotguard.deep_executor import execute_deep
 from lotguard.late_evidence import ingest_late_evidence
+from lotguard.tool_agent import investigate
 
 PORT = 8766
 LOT = "ING-RISK"
@@ -647,6 +649,31 @@ table th {
     }
 }
 
+
+/* LOTGUARD_MCP_TRACE_V2 */
+.trace-link {
+  display:inline-block;
+  margin-top:10px;
+  padding:12px 17px;
+  border:1px solid #597796;
+  border-radius:8px;
+  background:#253B54;
+  color:#E1ECF7;
+  font-size:13px;
+  font-weight:650;
+  text-decoration:none;
+}
+.trace-link:hover {
+  background:#324E6C;
+}
+@media(max-width:600px) {
+  .trace-link {
+    display:block;
+    text-align:center;
+    font-size:12px;
+  }
+}
+
 </style>
 </head>
 <body>
@@ -698,6 +725,18 @@ table th {
  </div>
 </div>
 
+
+<div class="card">
+ <h2>Adaptive MCP investigator</h2>
+ <p class="muted">
+  Execute a read-only investigation using real
+  FalkorDB-backed MCP tools and inspect why the
+  agent selected each operation.
+ </p>
+ <a class="trace-link" href="/agent-trace">
+  Run MCP investigation and view tool trace →
+ </a>
+</div>
 <div class="card">
  <h2>Live shipment inventory</h2>
  <table>
@@ -741,12 +780,242 @@ table th {
     return page.encode("utf-8")
 
 
+
+def render_agent_trace():
+    """Run the real read-only MCP agent and render its tool trace."""
+    report = asyncio.run(investigate(LOT))
+
+    steps = "".join(
+        "<li>"
+        f"<strong>{safe(step['tool'])}</strong>"
+        f"<p>{safe(step['reason'])}</p>"
+        "</li>"
+        for step in report["trace"]
+    )
+
+    proposal = report.get("proposal", {})
+    pending = ", ".join(proposal.get("pending", [])) or "None"
+    missed = ", ".join(report.get("newly_discovered", [])) or "None"
+
+    html = """<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>LotGuard | MCP Agent Trace</title>
+<style>
+* {box-sizing:border-box}
+body {
+ margin:0;background:#0b1220;color:#e6ebf2;
+ font-family:Inter,Segoe UI,system-ui,Arial,sans-serif
+}
+main {max-width:850px;margin:auto;padding:30px 18px 70px}
+h1 {font-size:25px}
+h2 {font-size:17px}
+p {line-height:1.55}
+.card {
+ margin-top:18px;padding:22px;background:#111a2b;
+ border:1px solid #30465c;border-radius:12px
+}
+.muted {color:#a5b9cc;font-size:13px}
+a {color:#b8d6f3}
+li {
+ padding:14px 5px;
+ border-bottom:1px solid #30465c;
+ overflow-wrap:anywhere
+}
+li strong {color:#c5dbef;font-size:14px}
+li p {color:#aebed0;font-size:12px}
+@media(max-width:600px) {
+ h1 {font-size:21px}
+ .card {padding:15px}
+}
+
+/* LOTGUARD_MCP_COMPACT_METRICS_V1 */
+
+body {
+  font-size:13px;
+}
+
+main {
+  max-width:800px;
+}
+
+h1 {
+  font-size:23px;
+  letter-spacing:-0.45px;
+}
+
+.card {
+  padding:18px;
+}
+
+.assessment-grid {
+  display:grid;
+  grid-template-columns:repeat(2,minmax(0,1fr));
+  gap:9px;
+}
+
+.metric {
+  min-width:0;
+  background:#16263B;
+  border:1px solid #2D435B;
+  border-radius:8px;
+  padding:12px 14px;
+}
+
+.metric-wide {
+  grid-column:1/-1;
+}
+
+.metric-label {
+  color:#A5BCD3;
+  font-size:11px;
+  font-weight:600;
+  line-height:1.4;
+  margin-bottom:6px;
+}
+
+.metric-value {
+  color:#E1EAF4;
+  font-size:13px;
+  line-height:1.45;
+  overflow-wrap:anywhere;
+}
+
+.metric-value.decision {
+  color:#CEE1F4;
+  font-size:13px;
+  font-weight:650;
+}
+
+.metric-value.number {
+  font-size:20px;
+  font-weight:700;
+  line-height:1.15;
+  letter-spacing:-0.4px;
+}
+
+.assessment-grid + p {
+  font-size:12px;
+}
+
+@media(max-width:600px) {
+  main {
+    padding:20px 13px 45px;
+  }
+
+  h1 {
+    font-size:20px;
+    line-height:1.25;
+  }
+
+  h2 {
+    font-size:15px;
+  }
+
+  .card {
+    padding:14px;
+    margin-top:12px;
+  }
+
+  .assessment-grid {
+    gap:8px;
+  }
+
+  .metric {
+    padding:10px 11px;
+  }
+
+  .metric-label {
+    font-size:10px;
+  }
+
+  .metric-value,
+  .metric-value.decision {
+    font-size:12px;
+  }
+
+  .metric-value.number {
+    font-size:18px;
+  }
+}
+
+</style>
+</head>
+<body>
+<main>
+<a href="/">← Back to operations dashboard</a>
+<h1>Sentinel MCP Investigation Trace</h1>
+<p class="muted">
+Live, read-only MCP investigation against FalkorDB.
+Policy-driven tool selection; no LLM autonomy.
+</p>
+<div class="card">
+<h2>Graph-grounded assessment</h2>
+<div class="assessment-grid">
+ <div class="metric metric-wide">
+  <div class="metric-label">Agent decision</div>
+  <div class="metric-value decision">__DECISION__</div>
+ </div>
+
+ <div class="metric">
+  <div class="metric-label">Pending units</div>
+  <div class="metric-value number">__UNITS__</div>
+ </div>
+
+ <div class="metric">
+  <div class="metric-label">MCP tool calls</div>
+  <div class="metric-value number">__COUNT__</div>
+ </div>
+
+ <div class="metric metric-wide">
+  <div class="metric-label">Pending shipments</div>
+  <div class="metric-value">__PENDING__</div>
+ </div>
+
+ <div class="metric metric-wide">
+  <div class="metric-label">Additional paths beyond 3 hops</div>
+  <div class="metric-value">__MISSED__</div>
+ </div>
+</div>
+</div>
+<div class="card">
+<h2>Explainable tool selection</h2>
+<ol>__STEPS__</ol>
+</div>
+<p class="muted">
+This investigation cannot approve or execute quarantine.
+</p>
+</main>
+</body>
+</html>"""
+
+    substitutions = {
+        "__DECISION__": safe(report["decision"].replace("_", " ").capitalize()),
+        "__UNITS__": safe(report["pending_units"]),
+        "__PENDING__": safe(pending),
+        "__MISSED__": safe(missed),
+        "__COUNT__": str(len(report["trace"])),
+        "__STEPS__": steps,
+    }
+
+    for key, value in substitutions.items():
+        html = html.replace(key, str(value))
+
+    return html.encode("utf-8")
+
+
 class Handler(BaseHTTPRequestHandler):
     def do_GET(self):
-        if urlparse(self.path).path != "/":
+        endpoint = urlparse(self.path).path
+        if endpoint not in ("/", "/agent-trace"):
             return self.send_error(404)
         try:
-            data = render()
+            data = (
+                render() if endpoint == "/"
+                else render_agent_trace()
+            )
         except Exception as exc:
             return self.send_error(500, str(exc))
         self.send_response(200)
