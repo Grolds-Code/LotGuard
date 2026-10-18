@@ -39,10 +39,11 @@ async def main():
             "inspect_provenance_gaps",
             "propose_response",
             "audit_history",
+            "execute_approved_quarantine",
         }
 
         assert names == expected, names
-        print("PASS 1: Five MCP tools discovered.")
+        print("PASS 1: Six MCP tools discovered.")
 
         incident = unpack(
             await client.call_tool(

@@ -5,9 +5,11 @@ from urllib.parse import parse_qs, urlparse
 
 from falkordb import FalkorDB
 from lotguard.deep_sentinel import investigate_deep, GRAPH_NAME
-from lotguard.deep_executor import execute_deep
+from mcp import Client
+from lotguard.mcp_server import mcp
+from lotguard.approval_gate import issue_local_approval
 from lotguard.late_evidence import ingest_late_evidence
-from lotguard.tool_agent import investigate
+from lotguard.tool_agent import investigate, unpack
 
 PORT = 8766
 LOT = "ING-RISK"
@@ -15,6 +17,73 @@ LOT = "ING-RISK"
 
 def safe(value):
     return escape(str(value), quote=True)
+
+
+
+# LOTGUARD_MCP_APPROVED_ACTION_V1
+async def approved_mcp_quarantine(lot_id):
+    """Investigate and execute through approval-gated MCP."""
+    report = await investigate(lot_id)
+    proposal = report.get("proposal", {})
+    pending = proposal.get("pending", [])
+
+    if not pending:
+        print("[MCP ACTION] No quarantine required.")
+        return {"verified": True, "no_action": True}
+
+    if report["decision"] != "REQUEST_HUMAN_QUARANTINE_APPROVAL":
+        raise PermissionError(
+            "Agent has not requested quarantine approval."
+        )
+
+    targets = sorted(set(pending))
+
+    # Recheck FalkorDB before issuing a scoped ticket.
+    current = sorted(investigate_deep(lot_id)["pending"])
+    if current != targets:
+        raise PermissionError(
+            "Graph targets changed during investigation."
+        )
+
+    # Issued only by the trusted local approval handler.
+    ticket = issue_local_approval(lot_id, targets)
+
+    async with Client(mcp) as client:
+        available = {
+            tool.name
+            for tool in (await client.list_tools()).tools
+        }
+        if "execute_approved_quarantine" not in available:
+            raise RuntimeError(
+                "MCP quarantine tool unavailable."
+            )
+
+        response = unpack(
+            await client.call_tool(
+                "execute_approved_quarantine",
+                {
+                    "lot_id": lot_id,
+                    "shipments": targets,
+                    "approval_ticket": ticket,
+                },
+            )
+        )
+
+    if (
+        response.get("verified") is not True
+        or sorted(response.get("quarantined", [])) != targets
+    ):
+        raise RuntimeError(
+            "MCP quarantine verification failed."
+        )
+
+    print(
+        "[MCP ACTION] Verified:",
+        response["action_id"],
+        targets,
+    )
+    return response
+
 
 
 def render():
@@ -719,7 +788,7 @@ table th {
   <div class="track"><div class="fill" style="width:100%"></div></div>
   <p class="muted">Detection of known affected shipments in the synthetic scenario.</p>
   __PROVENANCE_PANEL__
-  <h2 style="margin-top:24px">Agent intervention</h2>
+  <h2 style="margin-top:24px">Human-approved MCP intervention</h2>
   <p class="small">Decision: __DECISION__</p>
   __ACTION__
  </div>
@@ -1045,7 +1114,7 @@ class Handler(BaseHTTPRequestHandler):
             if endpoint == "/approve":
                 if data.get("approved") != ["yes"]:
                     return self.send_error(403, "Approval required")
-                execute_deep(LOT, approved=True)
+                asyncio.run(approved_mcp_quarantine(LOT))
             else:
                 if data.get("confirmed") != ["yes"]:
                     return self.send_error(403, "Confirmation required")

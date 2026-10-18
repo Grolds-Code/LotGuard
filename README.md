@@ -80,6 +80,7 @@ operations based on live graph evidence and incident state.
 | `inspect_provenance_gaps` | Identify incomplete upstream lineage |
 | `propose_response` | Generate a read-only containment proposal |
 | `audit_history` | Inspect previous quarantine interventions |
+| `execute_approved_quarantine` | Execute and verify human-approved quarantine |
 
 ### Run the MCP investigator
 
@@ -139,10 +140,28 @@ uv run --no-sync python tests/test_mcp_agent_states.py
 
 The state-transition test resets the synthetic deep-demo graph.
 
-**Safety:** MCP investigation tools are read-only. Inventory
-mutations are handled separately by the deterministic executor
-and require explicit operator approval. The local dashboard
-is not a production-authenticated multi-user service.
+### Human-approved MCP action loop
+
+The dashboard investigates through MCP, rechecks the current
+FalkorDB evidence, and requires operator confirmation.
+
+After approval, it issues a short-lived ticket scoped to the
+exact shipments. The sixth MCP tool consumes that ticket,
+executes quarantine, and verifies the FalkorDB audit record.
+
+The complete action workflow is tested with:
+
+`uv run --no-sync python tests/test_mcp_action.py`
+
+**Safety:** The five MCP investigation tools are read-only.
+The sixth MCP tool, `execute_approved_quarantine`, requires a
+short-lived, single-use approval ticket scoped to the exact
+shipments. The executor revalidates graph evidence and records
+the verified intervention in FalkorDB.
+
+Approval is provided through the local operator interface.
+This is a demonstration safeguard, not production authentication
+or authorization.
 
 ---
 

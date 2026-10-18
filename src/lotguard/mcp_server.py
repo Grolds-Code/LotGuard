@@ -1,4 +1,4 @@
-"""Read-only FalkorDB MCP tools for LotGuard Sentinel."""
+"""FalkorDB MCP investigation and approval-gated action tools."""
 
 from falkordb import FalkorDB
 from mcp.server import MCPServer
@@ -139,6 +139,64 @@ def audit_history() -> dict:
 
     return {"actions": actions}
 
+
+
+@mcp.tool()
+def execute_approved_quarantine(
+    lot_id: str,
+    shipments: list[str],
+    approval_ticket: str,
+) -> dict:
+    """Execute a scoped, explicitly approved synthetic quarantine.
+
+    A trusted local operator interface must issue the one-time
+    approval ticket. This tool cannot create its own approval.
+    The executor rechecks FalkorDB before making changes.
+    """
+    from lotguard.approval_gate import consume_local_approval
+    from lotguard.deep_executor import execute_deep
+
+    if not shipments or any(
+        not isinstance(item, str) or not item
+        for item in shipments
+    ):
+        raise ValueError("Valid shipment identifiers required.")
+
+    targets = sorted(set(shipments))
+    if len(targets) != len(shipments):
+        raise ValueError("Duplicate shipment targets rejected.")
+
+    current = investigate_deep(lot_id)
+    if sorted(current["pending"]) != targets:
+        raise PermissionError(
+            "Requested targets differ from current graph evidence."
+        )
+
+    consume_local_approval(approval_ticket, lot_id, targets)
+
+    previous = audit_history()["actions"]
+    execute_deep(lot_id=lot_id, approved=True)
+    updated = audit_history()["actions"]
+
+    new_ids = set(updated) - set(previous)
+    if len(new_ids) != 1:
+        raise RuntimeError(
+            "Expected one newly verified quarantine audit."
+        )
+
+    action_id = next(iter(new_ids))
+    if set(updated[action_id]) != set(targets):
+        raise RuntimeError(
+            "Graph audit differs from approved targets."
+        )
+
+    return {
+        "verified": True,
+        "action_id": action_id,
+        "lot_id": lot_id,
+        "quarantined": targets,
+        "new_action_count": len(new_ids),
+    }
 
 if __name__ == "__main__":
     mcp.run(transport="stdio")
