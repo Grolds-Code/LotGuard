@@ -146,7 +146,13 @@ def execute_deep(lot_id="ING-RISK", approved=False):
     print("\nPASS: All planned shipments quarantined.")
     print("PASS: Unrelated shipment states unchanged.")
     print("PASS: Evidence stored in FalkorDB audit.")
-    print("REVIEW: SHIP-50 still requires provenance investigation.")
+    if fresh_plan["manual_review"]:
+        print(
+            "REVIEW: Unresolved provenance:",
+            sorted(fresh_plan["manual_review"])
+        )
+    else:
+        print("PASS: No unresolved provenance reviews remain.")
 
 
 if __name__ == "__main__":

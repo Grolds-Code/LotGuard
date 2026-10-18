@@ -5,6 +5,7 @@ from urllib.parse import parse_qs, urlparse
 from falkordb import FalkorDB
 from lotguard.deep_sentinel import investigate_deep, GRAPH_NAME
 from lotguard.deep_executor import execute_deep
+from lotguard.late_evidence import ingest_late_evidence
 
 PORT = 8766
 LOT = "ING-RISK"
@@ -98,6 +99,66 @@ def render():
         + "</div></div>"
         for action, shipments in grouped.items()
     ) or "<p class='muted'>No quarantine actions recorded yet.</p>"
+
+
+    # LOTGUARD_EVOLVING_INCIDENTS_V2
+    evidence_received = bool(graph.ro_query("""
+        MATCH (e:ProvenanceEvidence {id:'EVID-SUPPLIER-50'})
+        RETURN e.id
+    """).result_set)
+
+    first_wave_done = {
+        "SHIP-10", "SHIP-20", "SHIP-30"
+    }.issubset(set(plan["already_quarantined"]))
+
+    if "SHIP-50" in review:
+        provenance_html = (
+            '<div class="notice">'
+            'SHIP-50 has incomplete upstream provenance. '
+            'Missing lineage is not proof of safety.'
+            '</div>'
+        )
+        if first_wave_done and not plan["pending"]:
+            provenance_html += """
+            <form method="post" action="/ingest-evidence">
+              <input type="hidden" name="confirmed" value="yes">
+              <button type="submit" class="secondary-action"
+                onclick="return confirm('Receive synthetic supplier evidence and reassess the incident?')">
+                Receive supplier evidence &amp; reassess →
+              </button>
+            </form>
+            """
+        else:
+            provenance_html += (
+                '<p class="small">'
+                'Complete the initial containment before '
+                'introducing additional supplier evidence.'
+                '</p>'
+            )
+    elif evidence_received:
+        provenance_html = (
+            '<div class="notice evidence-resolved">'
+            'Supplier evidence EVID-SUPPLIER-50 received. '
+            'SHIP-50 is now connected to the contaminated '
+            'ingredient through a verified graph path.'
+            '</div>'
+        )
+    else:
+        provenance_html = (
+            '<div class="complete">'
+            'No unresolved provenance gaps detected.'
+            '</div>'
+        )
+
+    if evidence_received:
+        audit_html = (
+            '<div class="audit-group">'
+            '<div class="audit-heading">SUPPLIER EVIDENCE RECEIVED</div>'
+            '<div class="audit-id">EVID-SUPPLIER-50</div>'
+            '<p class="small">B-20 → RUN-60 → '
+            'B-UNKNOWN → SHIP-50</p>'
+            '</div>'
+        ) + audit_html
 
     if plan["pending"]:
         action_html = """
@@ -559,6 +620,33 @@ table th {
   }
 }
 
+
+/* EVOLVING INCIDENT WORKFLOW */
+.secondary-action {
+    display:block;
+    margin-top:14px;
+    background:#26415C;
+    border:1px solid #6689AC;
+    color:#E1ECF7;
+}
+.secondary-action:hover {
+    background:#345573;
+}
+.evidence-resolved {
+    border-left-color:#86A99B;
+}
+.evidence-resolved::before {
+    content:"SUPPLIER EVIDENCE RECEIVED";
+    color:#B7D5C7;
+}
+@media(max-width:600px) {
+    .secondary-action {
+        width:100%;
+        white-space:normal;
+        text-align:center;
+    }
+}
+
 </style>
 </head>
 <body>
@@ -603,10 +691,7 @@ table th {
   <div class="compare"><span>8-hop traversal</span><strong>__TOTAL__ / __TOTAL__</strong></div>
   <div class="track"><div class="fill" style="width:100%"></div></div>
   <p class="muted">Detection of known affected shipments in the synthetic scenario.</p>
-  <div class="notice">
-   Provenance gap: SHIP-50 is escalated for manual review.
-   Missing lineage is not proof of safety.
-  </div>
+  __PROVENANCE_PANEL__
   <h2 style="margin-top:24px">Agent intervention</h2>
   <p class="small">Decision: __DECISION__</p>
   __ACTION__
@@ -645,6 +730,7 @@ table th {
         "__SHALLOW_PCT__": f"{shallow_pct:.1f}",
         "__DECISION__": safe(plan["decision"]),
         "__ACTION__": action_html,
+        "__PROVENANCE_PANEL__": provenance_html,
         "__INVENTORY__": inventory_html,
         "__AUDITS__": audit_html,
     }
@@ -671,7 +757,8 @@ class Handler(BaseHTTPRequestHandler):
         self.wfile.write(data)
 
     def do_POST(self):
-        if self.path != "/approve":
+        endpoint = urlparse(self.path).path
+        if endpoint not in ("/approve", "/ingest-evidence"):
             return self.send_error(404)
         origin = self.headers.get("Origin", "")
         if origin and origin not in (
@@ -686,9 +773,33 @@ class Handler(BaseHTTPRequestHandler):
             if not 0 < size <= 1024:
                 return self.send_error(400)
             data = parse_qs(self.rfile.read(size).decode())
-            if data.get("approved") != ["yes"]:
-                return self.send_error(403, "Approval required")
-            execute_deep(LOT, approved=True)
+            if endpoint == "/approve":
+                if data.get("approved") != ["yes"]:
+                    return self.send_error(403, "Approval required")
+                execute_deep(LOT, approved=True)
+            else:
+                if data.get("confirmed") != ["yes"]:
+                    return self.send_error(403, "Confirmation required")
+
+                current = investigate_deep(LOT)
+                first_wave_done = {
+                    "SHIP-10", "SHIP-20", "SHIP-30"
+                }.issubset(
+                    set(current["already_quarantined"])
+                )
+
+                if (
+                    not first_wave_done
+                    or current["pending"]
+                    or "SHIP-50" not in current["manual_review"]
+                ):
+                    return self.send_error(
+                        409,
+                        "Evidence ingestion is unavailable "
+                        "at this incident stage."
+                    )
+
+                ingest_late_evidence(apply=True)
         except Exception as exc:
             return self.send_error(500, str(exc))
         self.send_response(303)

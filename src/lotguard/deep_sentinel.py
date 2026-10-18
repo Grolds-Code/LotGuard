@@ -126,12 +126,18 @@ if __name__ == "__main__":
     print("No known contamination path:",
           report["not_linked_in_known_graph"])
 
-    assert report["affected"] == [
-        "SHIP-10", "SHIP-20", "SHIP-30"
-    ]
-    assert report["pending_units"] == 350
-    assert report["manual_review"] == ["SHIP-50"]
-    assert report["not_linked_in_known_graph"] == ["SHIP-40"]
+    affected = set(report["affected"])
+    pending = set(report["pending"])
+    quarantined = set(report["already_quarantined"])
+    unlinked = set(report["not_linked_in_known_graph"])
+    review = set(report["manual_review"])
 
-    print("\nPASS: Deep investigation and planning verified.")
+    assert pending <= affected
+    assert quarantined <= affected
+    assert pending.isdisjoint(quarantined)
+    assert affected.isdisjoint(unlinked)
+    assert review.isdisjoint(unlinked)
+    assert report["pending_units"] >= 0
+
+    print("\nPASS: State-aware investigation verified.")
     print("No inventory changes performed.")
