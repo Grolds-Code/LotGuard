@@ -9,6 +9,60 @@ LotGuard is a graph-powered incident-response prototype that traces contaminated
 
 **Core idea:** Quarantine what is actually connected to a contaminated lot while preserving unaffected inventory.
 
+## Quickstart — Evolving Incident Demo
+
+**Recommended demonstration for FalkorDB Graph Hacks 2026.**
+
+LotGuard Sentinel is a graph-driven supply-chain incident response
+prototype. It investigates contamination using FalkorDB, proposes
+targeted quarantine, requires human approval, and records audit evidence.
+
+### Run the application
+
+With FalkorDB running locally, initialize the synthetic scenario:
+
+```bash
+uv run --no-sync python -m lotguard.deep_lineage
+```
+
+Start the operations dashboard:
+
+```bash
+uv run --no-sync python -m lotguard.sentinel_ui
+```
+
+Open http://127.0.0.1:8766 on the same computer.
+
+### Two-wave demonstration
+
+1. Investigate the initial contamination: 350 affected units across
+   SHIP-10, SHIP-20 and SHIP-30.
+2. Approve and verify the first quarantine.
+3. Review SHIP-50's incomplete upstream provenance.
+4. Click **Receive supplier evidence & reassess**.
+5. Observe the new five-hop contamination path to SHIP-50.
+6. Approve the additional 60-unit quarantine.
+7. Verify two independent audit actions and 410 quarantined units.
+8. Confirm that unrelated SHIP-40 remains in transit.
+
+### Automated end-to-end verification
+
+```bash
+uv run --no-sync python tests/test_evolving_incidents.py
+```
+
+The test checks nine stages of the evolving incident lifecycle.
+
+**Reset warning:** Both the test and the deep_lineage initialization
+reset the synthetic lotguard_depth_demo graph and its audit history.
+
+**Limitations:** This prototype uses deterministic graph-driven rules,
+not LLM autonomy or MCP-based tool selection. Supplier evidence is
+synthetic. The dashboard runs locally and does not provide production
+authentication or independent public-user sessions.
+
+---
+
 ## The problem
 
 An ingredient may enter several manufacturing runs, be combined with other ingredients, and reach multiple downstream shipments. Identifying affected stock requires following the relationships between the original ingredient and downstream products.
@@ -350,7 +404,7 @@ This is a controlled demonstration of graph-traversal completeness, not an exter
 - `src/lotguard/deep_sentinel.py` — variable-depth investigation and planning
 - `src/lotguard/deep_executor.py` — approval-controlled execution and graph verification
 
-The advanced workflow is currently operated through the command line. The web dashboard remains connected to the original smaller demonstration.
+The advanced evolving-incident workflow is available through the Sentinel dashboard on port 8766. The original dashboard on port 8765 remains available as a baseline.
 
 ## Sentinel Operations Dashboard
 
