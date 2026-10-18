@@ -57,7 +57,7 @@ The test checks nine stages of the evolving incident lifecycle.
 reset the synthetic lotguard_depth_demo graph and its audit history.
 
 **Limitations:** This prototype uses deterministic graph-driven rules,
-not LLM autonomy or MCP-based tool selection. Supplier evidence is
+not LLM-driven autonomy. MCP tool selection is deterministic and evidence-conditioned. Supplier evidence is
 synthetic. The dashboard runs locally and does not provide production
 authentication or independent public-user sessions.
 
@@ -246,7 +246,7 @@ LotGuard uses a graph to support targeted, explainable intervention.
 - A local interactive dashboard
 - Deterministic verification of quarantine outcomes
 
-LotGuard currently implements a deterministic, graph-driven investigation and action workflow. It does not use an LLM, autonomous tool selection, or MCP in this version.
+LotGuard currently implements a deterministic, graph-driven investigation and action workflow. It includes evidence-conditioned MCP tool selection, but does not use an LLM or open-ended autonomous planning.
 
 ## Architecture
 
@@ -497,7 +497,7 @@ The six tests verify initial inventory, approval enforcement, protection against
 
 ### Agent capabilities and limitations
 
-Sentinel uses a deterministic, graph-driven tool workflow. It does not currently use an LLM, MCP-based tool selection, or open-ended autonomous reasoning.
+Sentinel uses a deterministic, graph-driven tool workflow. It includes evidence-conditioned MCP tool selection, but does not use an LLM or open-ended autonomous reasoning.
 
 Its evidence bundles provide auditable graph paths rather than formal proofs. All demonstrations use synthetic data.
 
