@@ -221,9 +221,11 @@ This is a hackathon prototype, not a certified recall-management system.
 
 Created for Graph Hacks 2026, October 15–18.
 
-ChatGPT was used extensively for concept exploration, architecture discussion, code drafting, debugging instructions, and documentation assistance.
+ChatGPT assisted with architectural exploration, implementation drafts, debugging guidance, and documentation.
 
-The participant configured the environment, executed and tested the implementation, verified FalkorDB graph operations and quarantine outcomes, and is responsible for reviewing, understanding, and submitting the project.
+The participant configured the development environment, executed and reviewed the implementation, tested the FalkorDB queries and agent workflows, verified the intervention results, and managed the GitHub repository and submission.
+
+The project includes reproducible tests, documented graph operations, and an explicit account of its current technical capabilities and limitations.
 
 ## Repository
 
