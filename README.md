@@ -351,3 +351,49 @@ This is a controlled demonstration of graph-traversal completeness, not an exter
 - `src/lotguard/deep_executor.py` — approval-controlled execution and graph verification
 
 The advanced workflow is currently operated through the command line. The web dashboard remains connected to the original smaller demonstration.
+
+## Sentinel Operations Dashboard
+
+The advanced Sentinel dashboard provides a unified interface for deep-provenance investigations, intervention approval, inventory inspection, and graph audit history.
+
+### Launch the advanced demonstration
+
+First, initialize the synthetic deep-provenance graph:
+
+~~~bash
+uv run --no-sync python -m lotguard.deep_lineage
+~~~
+
+This resets only `lotguard_depth_demo`.
+
+Then start the advanced dashboard:
+
+~~~bash
+uv run --no-sync python -m lotguard.sentinel_ui
+~~~
+
+Open http://127.0.0.1:8766 in your browser.
+
+### Interactive demonstration
+
+The dashboard displays:
+
+- Live inventory metrics from FalkorDB
+- Evidence paths of 3, 5, and 6 hops
+- A comparison of shallow and deep contamination tracing
+- Pending quarantine decisions
+- Explicit incomplete-provenance warnings
+- Human-approved quarantine execution
+- Current shipment states and recorded graph actions
+
+Click **Approve and verify quarantine** to execute the proposed intervention in the synthetic database.
+
+After confirmation, the dashboard refreshes to show the changed shipment states and audit records.
+
+The dashboard uses Sentinel's existing deep investigation planner and executor; it does not implement a separate decision engine.
+
+### Deployment and security
+
+The dashboard is intended for local demonstration only and binds to the loopback interface. It does not implement production-grade authentication or authorization.
+
+Do not expose the local server directly to the public internet without adding appropriate security controls.
