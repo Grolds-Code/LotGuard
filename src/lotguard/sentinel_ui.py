@@ -1,4 +1,5 @@
 import asyncio
+import os
 from html import escape
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import parse_qs, urlparse
@@ -13,6 +14,7 @@ from lotguard.tool_agent import investigate, unpack
 
 PORT = 8766
 LOT = "ING-RISK"
+PUBLIC_DEMO = os.getenv("LOTGUARD_PUBLIC_DEMO") == "1"
 
 
 def safe(value):
@@ -189,7 +191,7 @@ def render():
             'Missing lineage is not proof of safety.'
             '</div>'
         )
-        if first_wave_done and not plan["pending"]:
+        if first_wave_done and not plan["pending"] and not PUBLIC_DEMO:
             provenance_html += """
             <form method="post" action="/ingest-evidence">
               <input type="hidden" name="confirmed" value="yes">
@@ -231,7 +233,7 @@ def render():
             '</div>'
         ) + audit_html
 
-    if plan["pending"]:
+    if plan["pending"] and not PUBLIC_DEMO:
         action_html = """
         <form method="post" action="/approve">
           <input type="hidden" name="approved" value="yes">
@@ -240,6 +242,22 @@ def render():
           </button>
         </form>
         """
+    elif PUBLIC_DEMO:
+        action_html = (
+            '<div class="notice">Read-only public demo. '
+            'Watch the recorded demonstration for approved actions.</div>'
+            '<p style="margin:16px 0 4px">'
+            '<a href="https://www.youtube.com/watch?v=tTOlHlMm5kE" '
+            'target="_blank" rel="noopener noreferrer" '
+            'style="display:inline-block;max-width:100%;'
+            'box-sizing:border-box;padding:14px 18px;'
+            'background:#F4C96D;color:#172033;'
+            'border:2px solid #FFE3A0;border-radius:10px;'
+            'font-size:16px;font-weight:800;'
+            'text-decoration:none;text-align:center;">'
+            '&#9654; Watch the full intervention demo &rarr;'
+            '</a></p>'
+        )
     else:
         action_html = """
         <div class="complete">No pending quarantine actions.</div>
@@ -1095,6 +1113,8 @@ class Handler(BaseHTTPRequestHandler):
         self.wfile.write(data)
 
     def do_POST(self):
+        if PUBLIC_DEMO:
+            return self.send_error(403, "Read-only public demo")
         endpoint = urlparse(self.path).path
         if endpoint not in ("/approve", "/ingest-evidence"):
             return self.send_error(404)
@@ -1151,5 +1171,5 @@ if __name__ == "__main__":
         flush=True,
     )
     ThreadingHTTPServer(
-        ("127.0.0.1", PORT), Handler
+        ("0.0.0.0" if PUBLIC_DEMO else "127.0.0.1", PORT), Handler
     ).serve_forever()

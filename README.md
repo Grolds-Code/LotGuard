@@ -634,3 +634,12 @@ The dashboard uses Sentinel's existing deep investigation planner and executor; 
 The dashboard is intended for local demonstration only and binds to the loopback interface. It does not implement production-grade authentication or authorization.
 
 Do not expose the local server directly to the public internet without adding appropriate security controls.
+
+## Live Public Demo (Modal)
+
+https://groldotieno97--lotguard-sentinel-public-demo-serve-dashboard.us-east.modal.run
+
+The public demo provides live FalkorDB investigations and MCP tool traces.
+It is read-only to protect the shared synthetic demonstration graph.
+Human-approved quarantine actions are demonstrated in the video:
+https://www.youtube.com/watch?v=tTOlHlMm5kE
